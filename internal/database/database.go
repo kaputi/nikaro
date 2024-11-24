@@ -1,4 +1,4 @@
-package server
+package database
 
 import (
 	"context"
@@ -7,41 +7,22 @@ import (
 	"time"
 
 	"github.com/kaputi/nikaro/internal/utils"
-
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
-// Open new connection
-func SetupMongoDB() (*mongo.Collection, *mongo.Client, context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
-	if err != nil {
-		panic(fmt.Sprintf("Mongo DB Connect issue %s", err))
-	}
-	err = client.Ping(ctx, readpref.Primary())
-	if err != nil {
-		panic(fmt.Sprintf("Mongo DB ping issue %s", err))
-	}
-	collection := client.Database("mongo-golang-test").Collection("Users")
-	return collection, client, ctx, cancel
-}
+// Client instance
+var Client *mongo.Client
 
-func ConectMongoDb() (*mongo.Client, context.Context, context.CancelFunc) {
+func ConnectDB() (*mongo.Client, context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	user, ok := os.LookupEnv("MONGO_USER")
-	if !ok {
-		panic("MONGO_USER not found")
-	}
+	utils.MustOk(ok, "MONGO_USER not found")
 	password, ok := os.LookupEnv("MONGO_USER_PASSWORD")
-	if !ok {
-		panic("MONGO_USER_PASSWORD not found")
-	}
+	utils.MustOk(ok, "MONGO_USER_PASSWORD not found")
 	port, ok := os.LookupEnv("MONGO_PORT")
-	if !ok {
-		panic("MONGO_PORT not found")
-	}
+	utils.MustOk(ok, "MONGO_PORT not found")
 
 	mongoUrl := fmt.Sprintf("mongodb://%s:%s@localhost:%s", user, password, port)
 
@@ -49,7 +30,18 @@ func ConectMongoDb() (*mongo.Client, context.Context, context.CancelFunc) {
 
 	utils.MustErr(client.Ping(ctx, readpref.Primary()))
 
+	Client = client
+
 	return client, ctx, cancel
+}
+
+// getting database collections
+func GetCollection(collectionName string) *mongo.Collection {
+	if Client == nil {
+		panic("Database connection not established")
+	}
+	collection := Client.Database("nikaro").Collection(collectionName)
+	return collection
 }
 
 // Close the connection
@@ -59,6 +51,6 @@ func CloseConnection(client *mongo.Client, context context.Context, cancel conte
 		if err := client.Disconnect(context); err != nil {
 			panic(err)
 		}
-		fmt.Println("Close connection is called")
+		fmt.Println("MongoDB Connection Closed")
 	}()
 }

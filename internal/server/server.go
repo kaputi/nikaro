@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"sync/atomic"
 	"time"
+
+	"github.com/kaputi/nikaro/internal/configs"
 )
 
 type key int
@@ -62,17 +64,10 @@ func healthCheck(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusServiceUnavailable)
 }
 
-var defaultPort = "6969"
+func Start() {
+	port := configs.EnvServerPort()
 
-func main() {
 	logger := log.New(os.Stdout, "http: ", log.LstdFlags)
-
-	port, ok := os.LookupEnv("PORT")
-	if !ok {
-		logger.Printf("PORT not set. Using default port: %s\n", defaultPort)
-		port = defaultPort
-	}
-
 	http.HandleFunc("GET /", handler)
 	http.HandleFunc("GET /hp", healthCheck)
 
