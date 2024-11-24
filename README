@@ -1,0 +1,13 @@
+# To setup mongo 
+1. setup .env file (see example.env)
+2. run docker-compose up
+3. enter shell on container, and run mongosh
+4. use admin
+5. ```db.auth("rootUserName","rootPassowrd")```
+6. ```db.createUser({
+        user: "databaseUserName",
+        pwd: "databasePassword",
+        roles: [
+            {role : "readWrite", db: "databaseName"}
+        ]
+    })```

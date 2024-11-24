@@ -3,7 +3,10 @@ package server
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
+
+	"github.com/kaputi/nikaro/internal/utils"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -23,6 +26,30 @@ func SetupMongoDB() (*mongo.Collection, *mongo.Client, context.Context, context.
 	}
 	collection := client.Database("mongo-golang-test").Collection("Users")
 	return collection, client, ctx, cancel
+}
+
+func ConectMongoDb() (*mongo.Client, context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	user, ok := os.LookupEnv("MONGO_USER")
+	if !ok {
+		panic("MONGO_USER not found")
+	}
+	password, ok := os.LookupEnv("MONGO_USER_PASSWORD")
+	if !ok {
+		panic("MONGO_USER_PASSWORD not found")
+	}
+	port, ok := os.LookupEnv("MONGO_PORT")
+	if !ok {
+		panic("MONGO_PORT not found")
+	}
+
+	mongoUrl := fmt.Sprintf("mongodb://%s:%s@localhost:%s", user, password, port)
+
+	client := utils.Must(mongo.Connect(ctx, options.Client().ApplyURI(mongoUrl)))
+
+	utils.MustErr(client.Ping(ctx, readpref.Primary()))
+
+	return client, ctx, cancel
 }
 
 // Close the connection
