@@ -34,45 +34,46 @@ type ArrowHead string
 
 // taken from _ExcalidrawElementBase
 type ExcalidrawElement struct {
-	Type            string      `json:"type"`
-	Id              string      `json:"id"`
-	X               float32     `json:"x"`
-	Y               float32     `json:"y"`
-	StrokeColor     string      `json:"strokeColor"`
-	BackgroundColor string      `json:"backgroundColor"`
-	FillStyle       FillStyle   `json:"fillStyle"`
-	StrokeWidth     float32     `json:"strokeWidth"`
-	StrokeStyle     StrokeStyle `json:"strokeStyle"`
+	// MongoId         primitive.ObjectID `json:"_id" bson:"_id"`
+	Type            string      `json:"type" bson:"type"`
+	Id              string      `json:"id" bson:"id"`
+	X               float32     `json:"x" bson:"x"`
+	Y               float32     `json:"y" bson:"y"`
+	StrokeColor     string      `json:"strokeColor" bson:"strokeColor"`
+	BackgroundColor string      `json:"backgroundColor" bson:"backgroundColor"`
+	FillStyle       FillStyle   `json:"fillStyle" bson:"fillStyle"`
+	StrokeWidth     float32     `json:"strokeWidth" bson:"strokeWidth"`
+	StrokeStyle     StrokeStyle `json:"strokeStyle" bson:"strokeStyle"`
 	Roundness       struct {
-		Type  RoundessType `json:"type"`
-		Value float32      `json:"value"`
-	} `json:"roundness"`
-	Roughness float32 `json:"roughness"`
-	Opacity   float32 `json:"opacity"`
-	Width     float32 `json:"width"`
-	Height    float32 `json:"height"`
-	Angle     float32 `json:"angle"`
+		Type  RoundessType `json:"type" bson:"type"`
+		Value float32      `json:"value" bson:"value"`
+	} `json:"roundness" bson:"roundness"`
+	Roughness float32 `json:"roughness" bson:"roughness"`
+	Opacity   float32 `json:"opacity" bson:"opacity"`
+	Width     float32 `json:"width" bson:"width"`
+	Height    float32 `json:"height" bson:"height"`
+	Angle     float32 `json:"angle" bson:"angle"`
 	/** Random integer used to seed shape generation so that the roughjs shape
 	  doesn't differ across renders. */
-	Seed float32 `json:"seed"`
+	Seed float32 `json:"seed" bson:"seed"`
 	/** Integer that is sequentially incremented on each change. Used to reconcile
 	  elements during collaboration or when saving to server. */
-	Version float32 `json:"version"`
+	Version float32 `json:"version" bson:"version"`
 	/** Random integer that is regenerated on each change.
 	  Used for deterministic reconciliation of updates during collaboration,
 	  in case the versions (see above) are identical. */
-	VersionNonce float32 `json:"versionNonce"`
-	IsDeleted    bool    `json:"isDeleted"`
+	VersionNonce float32 `json:"versionNonce" bson:"versionNonce"`
+	IsDeleted    bool    `json:"isDeleted" bson:"isDeleted"`
 	// List of groups the element belongs to. Ordered from deepest to shallowest.
-	GroupIds []GroupId `json:"groupIds"`
-	FrameId  string    `json:"frameId"`
+	GroupIds []GroupId `json:"groupIds" bson:"groupIds"`
+	FrameId  string    `json:"frameId" bson:"frameId"`
 	// other elements that are bound to this element
-	BoundElements []ExcalidrawElement `json:"boundElements"`
+	BoundElements []ExcalidrawElement `json:"boundElements" bson:"boundElements"`
 	// epoch (ms) timestamp of last element update
-	Updated    float32     `json:"updated"`
-	Link       string      `json:"link"`
-	Locked     bool        `json:"locked"`
-	CustomData interface{} `json:"customData"`
+	Updated    float32     `json:"updated" bson:"updated"`
+	Link       string      `json:"link" bson:"link"`
+	Locked     bool        `json:"locked" bson:"locked"`
+	CustomData interface{} `json:"customData" bson:"customData"`
 
 	// taken from ExcaliidrawEmbedableElement
 	/**
@@ -82,39 +83,39 @@ type ExcalidrawElement struct {
 	 * the validation came from a trusted source (the editor). Also because we
 	 * may not have access to host-app supplied url validator during restore.
 	 */
-	Validated bool `json:"validated"`
+	Validated bool `json:"validated" bson:"validated"`
 
 	// taken from ExcalidrawImageElement
-	FileId string `json:"fileId"`
+	FileId string `json:"fileId" bson:"fileId"`
 	/** Whether respective file is persisted */
-	Status string `json:"status"`
+	Status string `json:"status" bson:"status"`
 	/** X and Y scale factors <-1, 1>, used for image axis flipping */
-	Scale [2]float32 `json:"scale"`
+	Scale [2]float32 `json:"scale" bson:"scale"`
 
 	// taken from ExcalidrawFrameElement
-	Name string `json:"name"`
+	Name string `json:"name" bson:"name"`
 	// taken from ExcalidrawTextElement
 
 	FontSize      float32          `fontSize:"fontSize"`
-	FontFamily    FontFamilyValues `json:"fontFamily"`
-	Text          string           `json:"text"`
-	Baseline      float32          `json:"baseline"`
-	TextAlign     TextAlign        `json:"textAlign"`
-	VerticalAlign VerticalAlign    `json:"verticalAlign"`
-	ContainerId   string           `json:"containerId"`
-	OriginalText  string           `json:"originalText"`
+	FontFamily    FontFamilyValues `json:"fontFamily" bson:"fontFamily"`
+	Text          string           `json:"text" bson:"text"`
+	Baseline      float32          `json:"baseline" bson:"baseline"`
+	TextAlign     TextAlign        `json:"textAlign" bson:"textAlign"`
+	VerticalAlign VerticalAlign    `json:"verticalAlign" bson:"verticalAlign"`
+	ContainerId   string           `json:"containerId" bson:"containerId"`
+	OriginalText  string           `json:"originalText" bson:"originalText"`
 	/** Unitless line height (aligned to W3C). To get line height in px, multiply with font size (using `getLineHeightInPx` helper). */
-	Linehight float32 `json:"lineHeight"`
+	Linehight float32 `json:"lineHeight" bson:"lineHeight"`
 
 	// taken from ExcalidrawLinearElement
-	Points             []Point      `json:"points"`
-	LastCommittedPoint Point        `json:"lastCommittedPoint"`
-	StartBinding       PointBinding `json:"startBinding"`
-	EndBinding         PointBinding `json:"endBinding"`
-	StartArrowhead     ArrowHead    `json:"startArrowhead"`
-	EndArrowhead       ArrowHead    `json:"endArrowhead"`
+	Points             []Point      `json:"points" bson:"points"`
+	LastCommittedPoint Point        `json:"lastCommittedPoint" bson:"lastCommittedPoint"`
+	StartBinding       PointBinding `json:"startBinding" bson:"startBinding"`
+	EndBinding         PointBinding `json:"endBinding" bson:"endBinding"`
+	StartArrowhead     ArrowHead    `json:"startArrowhead" bson:"startArrowhead"`
+	EndArrowhead       ArrowHead    `json:"endArrowhead" bson:"endArrowhead"`
 
 	//taken from ExcalidrawFreeDrawElement
-	Pressures        []float32 `json:"pressures"`
-	SimulatePressure bool      `json:"simulatePressure"`
+	Pressures        []float32 `json:"pressures" bson:"pressures"`
+	SimulatePressure bool      `json:"simulatePressure" bson:"simulatePressure"`
 }

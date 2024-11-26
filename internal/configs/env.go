@@ -37,3 +37,10 @@ func EnvServerPort() string {
 	utils.MustOk(ok, "PORT not found")
 	return port
 }
+
+func EnvFrontEndDir() string {
+	utils.MustOk(loadedEnv, "Env not loaded")
+	frontEndDir, ok := os.LookupEnv("FRONT_END_BUILD_DIR")
+	utils.MustOk(ok, "FRONT_END_BUILD_DIR not found")
+	return frontEndDir
+}
