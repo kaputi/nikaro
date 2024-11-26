@@ -7,110 +7,108 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
-	"sync/atomic"
+	"syscall"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/kaputi/nikaro/internal/configs"
+	"github.com/kaputi/nikaro/internal/modules/user"
 )
 
-type key int
+type RestServer struct {
+	httpServer *http.Server
 
-const (
-	requestIDKey key = 0
-)
+	userStore *user.UserRepo
+	// drawingStore *DrawingStore
+	// collabStore *CollabStore
+}
 
-func tracing(nextRequestID func() string) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			requestID := r.Header.Get("X-Request-ID")
-			if requestID == "" {
-				requestID = nextRequestID()
-			}
-
-			ctx := context.WithValue(r.Context(), requestIDKey, requestID)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
+func CreateRestServer() *RestServer {
+	return &RestServer{
+		userStore: user.NewUserRepo(),
 	}
 }
 
-func logging(logger *log.Logger) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			defer func() {
-				requestID, ok := r.Context().Value(requestIDKey).(string)
-				if !ok {
-					requestID = "unknown"
-				}
+func (rs *RestServer) Start() {
 
-				logger.Println(requestID, r.Method, r.URL.Path, r.RemoteAddr, r.UserAgent())
-			}()
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-func handler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Go then, there are other worlds than these.")
-}
-
-var healthy int32 = 0
-
-func healthCheck(w http.ResponseWriter, r *http.Request) {
-	if atomic.LoadInt32(&healthy) == 1 {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-	w.WriteHeader(http.StatusServiceUnavailable)
-}
-
-func Start() {
 	port := configs.EnvServerPort()
 
-	logger := log.New(os.Stdout, "http: ", log.LstdFlags)
-	http.HandleFunc("GET /", handler)
-	http.HandleFunc("GET /hp", healthCheck)
-
-	nextRequestID := func() string {
-		return strconv.FormatInt(time.Now().UnixNano(), 10)
-	}
-
 	server := &http.Server{
-		Addr:         ":" + port,
-		Handler:      tracing(nextRequestID)(logging(logger)(http.DefaultServeMux)),
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  15 * time.Second,
+		Addr:    fmt.Sprintf(":%s", port),
+		Handler: rs.Routes(),
 	}
 
-	done := make(chan bool)
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt)
+	rs.httpServer = server
 
-	atomic.StoreInt32(&healthy, 1)
+	serverCtx, serverStopCtx := context.WithCancel(context.Background())
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	go func() {
-		<-quit
-		logger.Println("Server is shutting down...")
-		atomic.StoreInt32(&healthy, 0)
+		<-sig
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		shutdownCtx, shutdownStopCtx := context.WithTimeout(serverCtx, 30*time.Second)
 
-		defer cancel()
+		go func() {
+			defer shutdownStopCtx()
+			<-shutdownCtx.Done()
+			if shutdownCtx.Err() == context.DeadlineExceeded {
+				log.Fatal("[Debug] graceful shutdown timed out.. forcing exit.")
+			}
+		}()
 
-		server.SetKeepAlivesEnabled(false)
-		if err := server.Shutdown(ctx); err != nil {
-			logger.Fatalf("Could not gracefully shutdown the server: %v\n", err)
+		err := server.Shutdown(shutdownCtx)
+
+		if err != nil {
+			log.Fatalf("[Debug] %s", err)
 		}
-		close(done)
+
+		serverStopCtx()
 	}()
 
-	logger.Println("Server is ready to handle requests at", port)
-
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logger.Fatalf("Could not listen on %s: %v\n", port, err)
+	err := server.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed {
+		log.Fatal(err)
 	}
 
-	<-done
-	logger.Println("Server stopped")
+	<-serverCtx.Done()
+}
+
+func apiRoute(route string) string {
+	apiV, ok := os.LookupEnv("API_VERSION")
+	if !ok {
+		apiV = "/api/v1/"
+	}
+
+	return fmt.Sprintf("%s%s", apiV, route)
+}
+
+func (rs *RestServer) Routes() http.Handler {
+	router := chi.NewRouter()
+
+	router.Use(middleware.RequestID)
+	router.Use(middleware.RealIP)
+	router.Use(middleware.Logger)
+	router.Use(middleware.Recoverer)
+	router.Use(middleware.Timeout(30 * time.Second))
+	router.Use(middleware.Throttle(200))
+
+	// Health check
+	router.Get(apiRoute("yougood"), func(w http.ResponseWriter, r *http.Request) {
+		_, err := w.Write([]byte("I'm good!"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	router.Mount(apiRoute("auth"), rs.userStore.Routes())
+
+	// staitc
+	router.Handle("/*", http.FileServer(http.Dir("./public")))
+
+	return router
 }

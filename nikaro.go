@@ -11,8 +11,9 @@ func main() {
 
 	client, ctx, cancel := database.ConnectDB()
 
-	// TODO: SERVER CODE GOES HERE
-	server.Serve()
+	sr := server.CreateRestServer()
+	sr.Routes()
+	sr.Start()
 
 	database.CloseConnection(client, ctx, cancel)
 }
