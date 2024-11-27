@@ -21,6 +21,7 @@ import (
 	"github.com/kaputi/nikaro/internal/database"
 	"github.com/kaputi/nikaro/internal/modules/drawings"
 	"github.com/kaputi/nikaro/internal/modules/user"
+	"github.com/kaputi/nikaro/internal/res"
 	"github.com/kaputi/nikaro/internal/utils"
 )
 
@@ -109,12 +110,7 @@ func (rs *RestServer) Routes() http.Handler {
 
 	// Health check
 	router.Get(utils.ApiRoute("yougood"), func(w http.ResponseWriter, r *http.Request) {
-		_, err := w.Write([]byte("I'm good!"))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
+		res.Success(w, "I'm good!")
 	})
 
 	router.Mount(utils.ApiRoute("auth"), rs.userStore.Routes())

@@ -2,8 +2,8 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"time"
@@ -61,6 +61,10 @@ func (a *Authorization) ParseToken(tokenString string) (*jwt.Token, *CustomClaim
 	})
 
 	if err != nil {
+		if err == jwt.ErrTokenExpired {
+			// TODO:
+			return nil, nil, errors.New("token expired")
+		}
 		return nil, nil, err
 	}
 
@@ -112,12 +116,17 @@ func (a *Authorization) VerifyToken(name string) func(http.Handler) http.Handler
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tokenString := a.GetTokenFromCookie(r, name)
+			if tokenString == "" {
+				// TODO: no token
+				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				return
+			}
 			token, claims, err := a.ParseToken(tokenString)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusUnauthorized)
+				// token has invalid claims: token is expired
 				return
 			}
-			log.Printf("Subject: %#v \n", claims.Subject)
 			r = r.WithContext(NewContext(r.Context(), token, claims))
 			next.ServeHTTP(w, r)
 		})
@@ -137,4 +146,10 @@ func (a *Authorization) AuthorizeAdmin() func(http.Handler) http.Handler {
 
 		})
 	}
+}
+
+func (a *Authorization) GetTokenFromContext(ctx context.Context) (*jwt.Token, *CustomClaims) {
+	token, _ := ctx.Value("token").(*jwt.Token)
+	claims := ctx.Value("claims").(*CustomClaims)
+	return token, claims
 }
