@@ -17,12 +17,10 @@ var Client *mongo.Client
 
 func ConnectDB() (*mongo.Client, context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	user, ok := os.LookupEnv("MONGO_USER")
-	utils.MustOk(ok, "MONGO_USER not found")
-	password, ok := os.LookupEnv("MONGO_USER_PASSWORD")
-	utils.MustOk(ok, "MONGO_USER_PASSWORD not found")
-	port, ok := os.LookupEnv("MONGO_PORT")
-	utils.MustOk(ok, "MONGO_PORT not found")
+
+	user := os.Getenv("MONGO_USER")
+	password := os.Getenv("MONGO_USER_PASSWORD")
+	port := os.Getenv("MONGO_PORT")
 
 	mongoUrl := fmt.Sprintf("mongodb://%s:%s@localhost:%s", user, password, port)
 

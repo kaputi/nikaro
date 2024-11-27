@@ -14,16 +14,19 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/kaputi/nikaro/internal/configs"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
+	"github.com/kaputi/nikaro/internal/auth"
 	"github.com/kaputi/nikaro/internal/database"
 	"github.com/kaputi/nikaro/internal/modules/drawings"
 	"github.com/kaputi/nikaro/internal/modules/user"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"github.com/kaputi/nikaro/internal/utils"
 )
 
 type RestServer struct {
 	httpServer *http.Server
+	// auth       *auth.Authorization
 
 	userStore *user.UserRepo
 	// drawingStore *DrawingStore
@@ -31,14 +34,16 @@ type RestServer struct {
 }
 
 func CreateRestServer() *RestServer {
+	authorization := auth.NewAthorization()
 	return &RestServer{
-		userStore: user.NewUserRepo(),
+		userStore: user.NewUserRepo(authorization),
+		// auth:      authorization,
 	}
 }
 
 func (rs *RestServer) Start() {
 
-	port := configs.EnvServerPort()
+	port := os.Getenv("PORT")
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", port),
@@ -82,15 +87,6 @@ func (rs *RestServer) Start() {
 	<-serverCtx.Done()
 }
 
-func apiRoute(route string) string {
-	apiV, ok := os.LookupEnv("API_VERSION")
-	if !ok {
-		apiV = "/api/v1/"
-	}
-
-	return fmt.Sprintf("%s%s", apiV, route)
-}
-
 func (rs *RestServer) Routes() http.Handler {
 	router := chi.NewRouter()
 
@@ -103,16 +99,16 @@ func (rs *RestServer) Routes() http.Handler {
 
 	// TODO: check for this on prod
 	router.Use(cors.Handler(cors.Options{
-		AllowedOrigins: []string{"*"},
-		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-    ExposedHeaders: []string{"Link"},
-    AllowCredentials: false,
-    MaxAge: 300,
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"}, // TODO: check
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: false,
+		MaxAge:           300,
 	}))
 
 	// Health check
-	router.Get(apiRoute("yougood"), func(w http.ResponseWriter, r *http.Request) {
+	router.Get(utils.ApiRoute("yougood"), func(w http.ResponseWriter, r *http.Request) {
 		_, err := w.Write([]byte("I'm good!"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -121,10 +117,12 @@ func (rs *RestServer) Routes() http.Handler {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	router.Mount(apiRoute("auth"), rs.userStore.Routes())
+	router.Mount(utils.ApiRoute("auth"), rs.userStore.Routes())
 
 	// staitc
-	router.Handle("/*", http.FileServer(http.Dir(configs.EnvFrontEndDir())))
+	frontEndDir := os.Getenv("FRONT_END_BUILD_DIR")
+
+	router.Handle("/*", http.FileServer(http.Dir(frontEndDir)))
 
 	router.Get("/api/v1/drawings", func(w http.ResponseWriter, r *http.Request) {
 		collection := database.GetCollection("drawings")
