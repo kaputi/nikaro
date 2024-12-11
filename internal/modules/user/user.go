@@ -17,7 +17,7 @@ import (
 
 type User struct {
 	Id       primitive.ObjectID `json:"id" bson:"_id"`
-	UserName string             `json:"username" bson:"username"`
+	Username string             `json:"username" bson:"username"`
 	Role     string             `json:"role" bson:"role"`
 	Password string             `json:"password" bson:"password"`
 }
@@ -25,11 +25,6 @@ type User struct {
 type UserPayload struct {
 	Id       primitive.ObjectID `json:"id"`
 	UserName string             `json:"username"`
-}
-
-type loginModel struct {
-	UserName string `json:"username" bson:"username"`
-	Password string `json:"password" bson:"password"`
 }
 
 type UserRepo struct {
@@ -64,12 +59,6 @@ func (ur *UserRepo) Routes() chi.Router {
 
 	r.Group(func(r chi.Router) {
 		r.Use(ur.auth.VerifyToken("jwt"))
-		r.Use(ur.auth.AuthorizeAdmin())
-		r.Get("/list", ur.List)
-	})
-
-	r.Group(func(r chi.Router) {
-		r.Use(ur.auth.VerifyToken("jwt"))
 		r.Route("/", func(r chi.Router) {
 			r.Get("/", ur.Get)
 			r.Put("/", ur.Update)
@@ -82,6 +71,12 @@ func (ur *UserRepo) Routes() chi.Router {
 		r.Get("/refresh", ur.RefreshToken)
 	})
 
+	r.Group(func(r chi.Router) {
+		r.Use(ur.auth.VerifyToken("jwt"))
+		r.Use(ur.auth.AuthorizeAdmin())
+		r.Get("/list", ur.List)
+	})
+
 	return r
 }
 
@@ -90,14 +85,38 @@ func (ur *UserRepo) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ur *UserRepo) Get(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Get user"))
+	_, claims := ur.auth.GetTokenFromContext(r.Context())
+
+	// if claims.Subject != "" {
+	// 	res.Success(w, claims.Subject)
+	//    return
+	// }
+	id, _ := primitive.ObjectIDFromHex(claims.Subject)
+
+	user := UserPayload{}
+
+	err := ur.collection.FindOne(r.Context(), bson.M{"_id": id}).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			res.Fail(w, "user not found", http.StatusNotFound)
+			return
+		}
+		res.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	res.Success(w, user)
+	// responseUser := UserPayload{
+	// 	Id:       user.Id,
+	// 	UserName: user.Username,
+	// }
+
 }
 
 func (ur *UserRepo) Create(w http.ResponseWriter, r *http.Request) {
 	// TODO: add validation
 
 	user := User{
-		Id:   primitive.NewObjectID(),
 		Role: "admin", // TODO: this is hardcoded for now
 	}
 
@@ -106,8 +125,9 @@ func (ur *UserRepo) Create(w http.ResponseWriter, r *http.Request) {
 		res.BadRequest(w, err.Error())
 		return
 	}
+	user.Id = primitive.NewObjectID()
 
-	inDb := ur.collection.FindOne(r.Context(), bson.M{"username": user.UserName})
+	inDb := ur.collection.FindOne(r.Context(), bson.M{"username": user.Username})
 	if inDb.Err() == nil {
 		res.Fail(w, "user already exists", http.StatusConflict)
 		return
@@ -135,7 +155,7 @@ func (ur *UserRepo) Create(w http.ResponseWriter, r *http.Request) {
 
 	responseUser := UserPayload{
 		Id:       user.Id,
-		UserName: user.UserName,
+		UserName: user.Username,
 	}
 
 	res.Success(w, responseUser)
@@ -144,7 +164,7 @@ func (ur *UserRepo) Create(w http.ResponseWriter, r *http.Request) {
 func (ur *UserRepo) Login(w http.ResponseWriter, r *http.Request) {
 	// TODO: add validation
 
-	reqData := loginModel{}
+	reqData := User{}
 
 	err := json.NewDecoder(r.Body).Decode(&reqData)
 
@@ -155,7 +175,7 @@ func (ur *UserRepo) Login(w http.ResponseWriter, r *http.Request) {
 
 	user := User{}
 
-	err = ur.collection.FindOne(r.Context(), bson.M{"username": reqData.UserName}).Decode(&user)
+	err = ur.collection.FindOne(r.Context(), bson.M{"username": reqData.Username}).Decode(&user)
 	if err != nil {
 		res.Fail(w, "user not found", http.StatusUnauthorized)
 		return
@@ -170,7 +190,7 @@ func (ur *UserRepo) Login(w http.ResponseWriter, r *http.Request) {
 
 		responseUser := UserPayload{
 			Id:       user.Id,
-			UserName: user.UserName,
+			UserName: user.Username,
 		}
 
 		res.Success(w, responseUser)
@@ -194,7 +214,7 @@ func (ur *UserRepo) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	id, err := primitive.ObjectIDFromHex(claims.Subject)
 
 	if err != nil {
-		res.Error(w, err.Error(), http.StatusInternalServerError)
+		res.BadRequest(w, "Invalid user id in token")
 		return
 	}
 
@@ -218,7 +238,7 @@ func (ur *UserRepo) setTokenCookie(w http.ResponseWriter, r *http.Request, user 
 		res.Error(w, err.Error(), http.StatusInternalServerError)
 		return "", err
 	}
-	ur.auth.SetTokenToCookie(w, "jwt", token, "", time.Minute*5)
+	ur.auth.SetTokenToCookie(w, "jwt", token, "/", time.Minute*5)
 	return token, nil
 }
 

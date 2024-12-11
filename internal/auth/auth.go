@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/kaputi/nikaro/internal/res"
 )
 
 type CustomClaims struct {
@@ -82,11 +83,8 @@ func (a *Authorization) SetTokenToCookie(w http.ResponseWriter, name, token, pat
 		Expires:  time.Now().Add(exp),
 		Secure:   true,
 		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-	}
-
-	if path != "" {
-		cookie.Path = path
+		Path:     path,
+		SameSite: http.SameSiteLaxMode,
 	}
 
 	http.SetCookie(w, cookie)
@@ -117,13 +115,12 @@ func (a *Authorization) VerifyToken(name string) func(http.Handler) http.Handler
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tokenString := a.GetTokenFromCookie(r, name)
 			if tokenString == "" {
-				// TODO: no token
-				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				res.Fail(w, "No token", http.StatusUnauthorized)
 				return
 			}
 			token, claims, err := a.ParseToken(tokenString)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusUnauthorized)
+				res.Fail(w, err.Error(), http.StatusUnauthorized)
 				// token has invalid claims: token is expired
 				return
 			}
@@ -139,7 +136,7 @@ func (a *Authorization) AuthorizeAdmin() func(http.Handler) http.Handler {
 			claims, _ := r.Context().Value("claims").(*CustomClaims)
 
 			if claims.Role != "admin" {
-				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+				res.Fail(w, "Forbidden", http.StatusForbidden)
 				return
 			}
 			next.ServeHTTP(w, r)

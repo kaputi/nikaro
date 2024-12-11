@@ -7,20 +7,24 @@ import (
 
 type statusRes struct {
 	Status string `json:"status"`
+	Code   int    `json:"code"`
 }
 
 type statusDataRes struct {
 	Status string      `json:"status"`
+	Code   int         `json:"code"`
 	Data   interface{} `json:"data"`
 }
 
 type statusMessageRes struct {
 	Status  string `json:"status"`
+	Code    int    `json:"code"`
 	Message string `json:"message"`
 }
 
 type statusDataMessageRes struct {
 	Status  string      `json:"status"`
+	Code    int         `json:"code"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data"`
 }
@@ -48,13 +52,13 @@ func Write(w http.ResponseWriter, code int, status, message string, data interfa
 
 	var err error
 	if data == nil && message == "" {
-		err = json.NewEncoder(w).Encode(statusRes{status})
+		err = json.NewEncoder(w).Encode(statusRes{status, code})
 	} else if data == nil {
-		err = json.NewEncoder(w).Encode(statusMessageRes{status, message})
+		err = json.NewEncoder(w).Encode(statusMessageRes{status, code, message})
 	} else if message == "" {
-		err = json.NewEncoder(w).Encode(statusDataRes{status, data})
+		err = json.NewEncoder(w).Encode(statusDataRes{status, code, data})
 	} else {
-		err = json.NewEncoder(w).Encode(statusDataMessageRes{status, message, data})
+		err = json.NewEncoder(w).Encode(statusDataMessageRes{status, code, message, data})
 	}
 
 	if err != nil {

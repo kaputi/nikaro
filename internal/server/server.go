@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,11 +13,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/kaputi/nikaro/internal/auth"
-	"github.com/kaputi/nikaro/internal/database"
 	"github.com/kaputi/nikaro/internal/modules/drawings"
 	"github.com/kaputi/nikaro/internal/modules/user"
 	"github.com/kaputi/nikaro/internal/res"
@@ -29,16 +25,16 @@ type RestServer struct {
 	httpServer *http.Server
 	// auth       *auth.Authorization
 
-	userStore *user.UserRepo
-	// drawingStore *DrawingStore
+	userStore    *user.UserRepo
+	drawingStore *drawings.DrawingsRepo
 	// collabStore *CollabStore
 }
 
 func CreateRestServer() *RestServer {
 	authorization := auth.NewAthorization()
 	return &RestServer{
-		userStore: user.NewUserRepo(authorization),
-		// auth:      authorization,
+		userStore:    user.NewUserRepo(authorization),
+		drawingStore: drawings.NewDrawingsRepo(authorization),
 	}
 }
 
@@ -104,7 +100,7 @@ func (rs *RestServer) Routes() http.Handler {
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"}, // TODO: check
 		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: false,
+		AllowCredentials: true,
 		MaxAge:           300,
 	}))
 
@@ -115,60 +111,62 @@ func (rs *RestServer) Routes() http.Handler {
 
 	router.Mount(utils.ApiRoute("auth"), rs.userStore.Routes())
 
+	router.Mount(utils.ApiRoute("drawings"), rs.drawingStore.Routes())
+
 	// staitc
 	frontEndDir := os.Getenv("FRONT_END_BUILD_DIR")
 
 	router.Handle("/*", http.FileServer(http.Dir(frontEndDir)))
 
-	router.Get("/api/v1/drawings", func(w http.ResponseWriter, r *http.Request) {
-		collection := database.GetCollection("drawings")
-		allDrawings := drawings.Drawing{}
+	// router.Get("/api/v1/drawings", func(w http.ResponseWriter, r *http.Request) {
+	// 	collection := database.GetCollection("drawings")
+	// 	allDrawings := drawings.Drawing{}
 
-		obectId, _ := primitive.ObjectIDFromHex("67462822fa632306906a5d96")
-		err := collection.FindOne(r.Context(), bson.M{"_id": obectId}).Decode(&allDrawings)
+	// 	obectId, _ := primitive.ObjectIDFromHex("67462822fa632306906a5d96")
+	// 	err := collection.FindOne(r.Context(), bson.M{"_id": obectId}).Decode(&allDrawings)
 
-		if err != nil {
-			//TODO: handle error
-			log.Println(err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	// 	if err != nil {
+	// 		//TODO: handle error
+	// 		log.Println(err.Error())
+	// 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	// 		return
+	// 	}
 
-		err = json.NewEncoder(w).Encode(allDrawings.Elements)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-	})
+	// 	err = json.NewEncoder(w).Encode(allDrawings.Elements)
+	// 	if err != nil {
+	// 		http.Error(w, err.Error(), http.StatusBadRequest)
+	// 		return
+	// 	}
+	// })
 
-	router.Post("/drawings", func(w http.ResponseWriter, r *http.Request) {
-		dr := drawings.Drawing{
-			Id:       primitive.NewObjectID(),
-			Elements: []drawings.ExcalidrawElement{},
-		}
+	// router.Post("/drawings", func(w http.ResponseWriter, r *http.Request) {
+	// 	dr := drawings.Drawing{
+	// 		Id:       primitive.NewObjectID(),
+	// 		Elements: []drawings.ExcalidrawElement{},
+	// 	}
 
-		err := json.NewDecoder(r.Body).Decode(&dr.Elements)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	// 	err := json.NewDecoder(r.Body).Decode(&dr.Elements)
+	// 	if err != nil {
+	// 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	// 		return
+	// 	}
 
-		collection := database.GetCollection("drawings")
-		_, err = collection.InsertOne(r.Context(), dr)
+	// 	collection := database.GetCollection("drawings")
+	// 	_, err = collection.InsertOne(r.Context(), dr)
 
-		if err != nil {
-			log.Println(err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	// 	if err != nil {
+	// 		log.Println(err)
+	// 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	// 		return
+	// 	}
 
-		err = json.NewEncoder(w).Encode(dr.Elements)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+	// 	err = json.NewEncoder(w).Encode(dr.Elements)
+	// 	if err != nil {
+	// 		http.Error(w, err.Error(), http.StatusBadRequest)
+	// 		return
+	// 	}
 
-	})
+	// })
 
 	return router
 }
